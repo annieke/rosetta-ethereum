@@ -50,6 +50,8 @@ func (s *BlockAPIService) Block(
 		return nil, ErrUnavailableOffline
 	}
 
+	// TODO(inphi): fixme
+	ctx = context.Background()
 	block, err := s.client.Block(ctx, request.BlockIdentifier)
 	if errors.Is(err, optimism.ErrBlockOrphaned) {
 		return nil, wrapErr(ErrBlockOrphaned, err)

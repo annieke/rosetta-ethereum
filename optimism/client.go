@@ -251,14 +251,17 @@ func (ec *Client) getBlock(
 	// We fetch traces last because we want to avoid limiting the number of other
 	// block-related data fetches we perform concurrently (we limit the number of
 	// concurrent traces that are computed to 16 to avoid overwhelming geth).
-	var traces []*Call
+	//var traces []*Call
 	var addTraces bool
 	if head.Number.Int64() != GenesisBlockIndex { // not possible to get traces at genesis
 		addTraces = true
-		traces, err = ec.getTransactionTraces(ctx, body.Transactions)
-		if err != nil {
-			return nil, nil, fmt.Errorf("%w: could not get traces for all txs in block %x", err, body.Hash[:])
-		}
+		// TODO(inphi): Uncomment once tx traces are working again
+		/*
+			traces, err = ec.getTransactionTraces(ctx, body.Transactions)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%w: could not get traces for all txs in block %x", err, body.Hash[:])
+			}
+		*/
 	}
 
 	// Convert all txs to loaded txs
@@ -282,7 +285,8 @@ func (ec *Client) getBlock(
 			continue
 		}
 
-		loadedTxs[i].Trace = traces[i]
+		// TODO(inphi): Uncomment once tx traces are working again
+		//loadedTxs[i].Trace = traces[i]
 	}
 
 	return types.NewBlockWithHeader(&head).WithBody(
