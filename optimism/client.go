@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"golang.org/x/sync/semaphore"
 )
@@ -102,17 +101,15 @@ func (ec *Client) Status(ctx context.Context) (
 		return nil, -1, nil, nil, err
 	}
 
-	// TODO: Redo sync status with comparison to sequencer here
-	// TODO: use rollup_getInfo instead
-	// https://community.optimism.io/docs/developers/l2/json-rpc.html#rollup-getinfo
-	// progress, err := ec.syncProgress(ctx)
-	// if err != nil {
-	// 	return nil, -1, nil, nil, err
-	// }
+	progress, err := ec.syncProgress(ctx)
+	if err != nil {
+		return nil, -1, nil, nil, err
+	}
 
 	var syncStatus *RosettaTypes.SyncStatus
 	currentIndex := int64(header.Number.Uint64())
-	targetIndex := int64(header.Number.Uint64()) // TODO: use rollup_getInfo value
+	// TODO: fetch this number from sequencer
+	targetIndex := int64(progress.RollupContext.Index.Uint64())
 
 	syncStatus = &RosettaTypes.SyncStatus{
 		CurrentIndex: &currentIndex,
@@ -970,40 +967,37 @@ func (ec *Client) populateTransaction(
 	return populatedTransaction, nil
 }
 
-type rpcProgress struct {
-	StartingBlock hexutil.Uint64
-	CurrentBlock  hexutil.Uint64
-	HighestBlock  hexutil.Uint64
-	PulledStates  hexutil.Uint64
-	KnownStates   hexutil.Uint64
+type EthContext struct {
+	BlockNumber *big.Int `json:"blockNumber`
+	Timestamp   uint64   `json:"timestamp"`
 }
 
-// TODO: make this a sequencer height check instead
+type RollupContext struct {
+	Index         *big.Int `json:"index"`
+	QueueIndex    *big.Int `json:"queueIndex"`
+	VerifiedIndex *big.Int `json:"verifiedIndex"`
+}
+type rpcRollupInfo struct {
+	Mode          string `json:"type"`
+	Syncing       bool   `json:"syncing"`
+	EthContext    `json:"ethContext"`
+	RollupContext `json:"rollupContext"`
+}
+
 // syncProgress retrieves the current progress of the sync algorithm. If there's
 // no sync currently running, it returns nil.
-func (ec *Client) syncProgress(ctx context.Context) (*ethereum.SyncProgress, error) {
+func (ec *Client) syncProgress(ctx context.Context) (*rpcRollupInfo, error) {
 	var raw json.RawMessage
-	if err := ec.c.CallContext(ctx, &raw, "eth_syncing"); err != nil {
+	if err := ec.c.CallContext(ctx, &raw, "rollup_getInfo"); err != nil {
 		return nil, err
 	}
 
-	var syncing bool
-	if err := json.Unmarshal(raw, &syncing); err == nil {
-		return nil, nil // Not syncing (always false)
-	}
-
-	var progress rpcProgress
+	var progress rpcRollupInfo
 	if err := json.Unmarshal(raw, &progress); err != nil {
 		return nil, err
 	}
 
-	return &ethereum.SyncProgress{
-		StartingBlock: uint64(progress.StartingBlock),
-		CurrentBlock:  uint64(progress.CurrentBlock),
-		HighestBlock:  uint64(progress.HighestBlock),
-		PulledStates:  uint64(progress.PulledStates),
-		KnownStates:   uint64(progress.KnownStates),
-	}, nil
+	return &progress, nil
 }
 
 type graphqlBalance struct {
